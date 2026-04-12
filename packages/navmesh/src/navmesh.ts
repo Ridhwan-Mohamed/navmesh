@@ -22,6 +22,7 @@ export default class NavMesh {
   private meshShrinkAmount: number;
   private navPolygons: NavPoly[];
   private graph: NavGraph;
+  private nextPolyId = 0;
 
   /**
    * @param meshPolygonPoints Array where each element is an array of point-like objects that
@@ -33,11 +34,8 @@ export default class NavMesh {
     this.meshShrinkAmount = meshShrinkAmount;
 
     // Convert the PolyPoints[] into NavPoly instances.
-    const newPolys = meshPolygonPoints.map((polyPoints) => {
-      const vectors = polyPoints.map((p) => new Vector2(p.x, p.y));
-      return new Polygon(vectors);
-    });
-    this.navPolygons = newPolys.map((polygon, i) => new NavPoly(i, polygon));
+    const newPolys = meshPolygonPoints.map((polyPoints) => this.createNavPoly(polyPoints));
+    this.navPolygons = newPolys;
 
     this.calculateNeighbors();
 
@@ -50,6 +48,66 @@ export default class NavMesh {
    */
   public getPolygons() {
     return this.navPolygons;
+  }
+
+  /**
+   * Get a polygon in this navmesh by its id.
+   */
+  public getPolygonById(id: number) {
+    return this.navPolygons.find((poly) => poly.id === id) ?? null;
+  }
+
+  /**
+   * Add a polygon to the navmesh and rebuild the internal graph.
+   */
+  public addPolygon(polyPoints: PolyPoints) {
+    const [addedPoly] = this.addPolygons([polyPoints]);
+    return addedPoly ?? null;
+  }
+
+  /**
+   * Add multiple polygons to the navmesh and rebuild the internal graph.
+   */
+  public addPolygons(polyPointsCollection: PolyPoints[]) {
+    const newPolys = polyPointsCollection.map((polyPoints) => this.createNavPoly(polyPoints));
+    if (newPolys.length === 0) return [];
+
+    this.navPolygons.push(...newPolys);
+    this.rebuildGraph();
+
+    return newPolys;
+  }
+
+  /**
+   * Remove a polygon from the navmesh by polygon reference or polygon id.
+   */
+  public removePolygon(polyOrId: NavPoly | number) {
+    const [removedPoly] = this.removePolygons([polyOrId]);
+    return removedPoly ?? null;
+  }
+
+  /**
+   * Remove multiple polygons from the navmesh by polygon reference or polygon id.
+   */
+  public removePolygons(polysOrIds: Array<NavPoly | number>) {
+    const polysToRemove = this.resolveNavPolys(polysOrIds);
+    if (polysToRemove.length === 0) return [];
+
+    const removeSet = new Set(polysToRemove);
+    this.navPolygons = this.navPolygons.filter((poly) => !removeSet.has(poly));
+    this.rebuildGraph();
+
+    return polysToRemove;
+  }
+
+  /**
+   * Replace a set of polygons with new polygons and rebuild the internal graph.
+   */
+  public replacePolygons(polysOrIdsToRemove: Array<NavPoly | number>, polysToAdd: PolyPoints[]) {
+    const removedPolys = this.removePolygons(polysOrIdsToRemove);
+    const addedPolys = this.addPolygons(polysToAdd);
+
+    return { removedPolys, addedPolys };
   }
 
   /**
@@ -233,6 +291,8 @@ export default class NavMesh {
   }
 
   private calculateNeighbors() {
+    this.clearConnections();
+
     // Fill out the neighbor information for each navpoly
     for (let i = 0; i < this.navPolygons.length; i++) {
       const navPoly = this.navPolygons[i];
@@ -337,5 +397,42 @@ export default class NavMesh {
       }
     }
     return { point: closestProjection, distance: closestDistance };
+  }
+
+  private rebuildGraph() {
+    this.calculateNeighbors();
+    this.graph.destroy();
+    this.graph = new NavGraph(this.navPolygons);
+  }
+
+  private createNavPoly(polyPoints: PolyPoints) {
+    const vectors = polyPoints.map((p) => new Vector2(p.x, p.y));
+    const polygon = new Polygon(vectors);
+    const id = this.nextPolyId ?? 0;
+    this.nextPolyId = id + 1;
+    return new NavPoly(id, polygon);
+  }
+
+  private resolveNavPolys(polysOrIds: Array<NavPoly | number>) {
+    const resolved: NavPoly[] = [];
+    const seen = new Set<NavPoly>();
+
+    for (const entry of polysOrIds) {
+      const poly =
+        typeof entry === "number" ? this.getPolygonById(entry) : this.getPolygonById(entry.id);
+      if (!poly || seen.has(poly)) continue;
+
+      seen.add(poly);
+      resolved.push(poly);
+    }
+
+    return resolved;
+  }
+
+  private clearConnections() {
+    for (const poly of this.navPolygons) {
+      poly.neighbors = [];
+      poly.portals = [];
+    }
   }
 }

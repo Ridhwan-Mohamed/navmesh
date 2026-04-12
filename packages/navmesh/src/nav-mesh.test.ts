@@ -183,3 +183,51 @@ describe("findClosestMeshPoint", () => {
     expect(isPoly2or4).toBe(true);
   });
 });
+
+describe("runtime polygon mutation", () => {
+  // prettier-ignore
+  const left = [v2(0,0), v2(10,0), v2(10,10), v2(0,10)];
+  // prettier-ignore
+  const middle = [v2(10,0), v2(20,0), v2(20,10), v2(10,10)];
+  // prettier-ignore
+  const right = [v2(20,0), v2(30,0), v2(30,10), v2(20,10)];
+
+  it("should connect islands after adding a bridging polygon", () => {
+    const navMesh = new NavMesh([left, right]);
+
+    expect(navMesh.findPath(v2(5, 5), v2(25, 5))).toBeNull();
+
+    const addedPoly = navMesh.addPolygon(middle);
+    const path = navMesh.findPath(v2(5, 5), v2(25, 5));
+
+    expect(addedPoly?.id).toBe(2);
+    expect(path).toEqual([v2(5, 5), v2(25, 5)]);
+  });
+
+  it("should disconnect regions after removing a bridging polygon", () => {
+    const navMesh = new NavMesh([left, middle, right]);
+
+    expect(navMesh.findPath(v2(5, 5), v2(25, 5))).toEqual([v2(5, 5), v2(25, 5)]);
+
+    const removedPoly = navMesh.removePolygon(1);
+
+    expect(removedPoly?.id).toBe(1);
+    expect(navMesh.findPath(v2(5, 5), v2(25, 5))).toBeNull();
+  });
+
+  it("should keep paths working when replacing a polygon with multiple polygons", () => {
+    const navMesh = new NavMesh([left, middle, right]);
+    // prettier-ignore
+    const middleA = [v2(10,0), v2(15,0), v2(15,10), v2(10,10)];
+    // prettier-ignore
+    const middleB = [v2(15,0), v2(20,0), v2(20,10), v2(15,10)];
+
+    const result = navMesh.replacePolygons([1], [middleA, middleB]);
+    const path = navMesh.findPath(v2(5, 5), v2(25, 5));
+
+    expect(result.removedPolys.map((poly) => poly.id)).toEqual([1]);
+    expect(result.addedPolys.map((poly) => poly.id)).toEqual([3, 4]);
+    expect(navMesh.getPolygonById(1)).toBeNull();
+    expect(path).toEqual([v2(5, 5), v2(25, 5)]);
+  });
+});
