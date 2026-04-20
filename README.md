@@ -1,14 +1,25 @@
-# Navigation Meshes Overview <!-- omit in toc -->
+# Runtime Navmesh Mutation Lab <!-- omit in toc -->
 
 A JS plugin for fast pathfinding using [navigation meshes](https://en.wikipedia.org/wiki/Navigation_mesh), with optional wrappers for the Phaser v2 and Phaser v3 game engines.
 
-This fork also includes runtime navmesh mutation APIs for grid-based worlds and a live Phaser 3 lab that compares accelerated local patching against full navmesh rebuilds while you edit terrain in real time.
+Live demo: https://ridhwan-mohamed.github.io/navmesh/
+
+This fork focuses on runtime mutation for grid-generated navmeshes. It adds localized patch APIs to the core library and a Phaser 3 showcase that lets you compare accelerated local updates against Phaser's default full navmesh rebuild while editing the map in real time.
+
+## Fork Highlights
+
+- Live Phaser 3 runtime lab with a `100x100` editable world, traversal-mode toggles, blocker painting, live path rendering, and timing comparisons
+- `GridNavMeshUpdater` helpers for local `open` / `block` edits plus bounded `replaceBounds(...)` patch rebuilds
+- Runtime polygon mutation hooks on `NavMesh` so grid edits can reconnect into the existing mesh instead of forcing a full rebuild
+- A focused demo page on GitHub Pages intended to show the runtime mutation behavior clearly, not just benchmark it in isolation
+
+## What This Branch Is For
+
+`issue-27-runtime-navmesh-mutation` is intended to be a demo-ready branch for the runtime mutation work while it waits on upstream review. If you want the fastest way to understand the changes, start with the live lab above, then read the `Runtime Grid Mutation` section below for the API surface.
 
 [<img src="./doc-source/single-following-agent.gif" width="400">](https://www.mikewesthad.com/navmesh/demo/)
 
 [Interactive demo](https://www.mikewesthad.com/navmesh/demo/)
-
-[Runtime Navmesh Lab](https://ridhwan-mohamed.github.io/navmesh/)
 
 (Note: if you are viewing this on GitHub or NPM, you might want to check out the HTML documentation [here](https://www.mikewesthad.com/navmesh/docs/).)
 
