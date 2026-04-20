@@ -124,16 +124,21 @@ export default class NavMesh {
       this.navPolygons = this.navPolygons.filter((poly) => !removedSet.has(poly));
     }
 
-    const addedPolys = polysToAdd.map((polyPoints) => this.createNavPoly(polyPoints));
+    const mergedNeighborPolys: NavPoly[] = [];
+    const addedPolys = this.mergeReplacementPolygons(
+      polysToAdd.map((polyPoints) => this.createNavPoly(polyPoints)),
+      neighborPolys,
+      mergedNeighborPolys
+    );
     if (addedPolys.length > 0) {
       this.navPolygons.push(...addedPolys);
-      const candidates = removedPolys.length > 0 ? addedPolys.concat(neighborPolys) : this.navPolygons;
-      this.connectPolygonSet(addedPolys, candidates);
+      this.connectPolygonSet(addedPolys, this.navPolygons);
     }
 
     this.rebuildGraph();
 
-    return { removedPolys, addedPolys, neighborPolys };
+    const finalNeighborPolys = neighborPolys.filter((poly) => !mergedNeighborPolys.includes(poly));
+    return { removedPolys: removedPolys.concat(mergedNeighborPolys), addedPolys, neighborPolys: finalNeighborPolys };
   }
 
   /**
@@ -472,6 +477,106 @@ export default class NavMesh {
     }
 
     return false;
+  }
+
+  private mergeReplacementPolygons(addedPolys: NavPoly[], neighborPolys: NavPoly[], mergedNeighborPolys: NavPoly[]) {
+    const workingAdded = [...addedPolys];
+
+    for (let sourceIndex = 0; sourceIndex < workingAdded.length; sourceIndex += 1) {
+      let sourcePoly = workingAdded[sourceIndex];
+      let merged = true;
+
+      while (merged) {
+        merged = false;
+        const candidates = [
+          ...neighborPolys.filter((poly) => this.navPolygons.includes(poly)),
+          ...workingAdded.filter((_, index) => index !== sourceIndex),
+        ];
+
+        for (const candidate of candidates) {
+          const mergedPoints = this.getMergedRectanglePoints(sourcePoly, candidate);
+          if (!mergedPoints) continue;
+
+          if (this.navPolygons.includes(candidate)) {
+            this.disconnectPolygon(candidate);
+            this.navPolygons = this.navPolygons.filter((poly) => poly !== candidate);
+            mergedNeighborPolys.push(candidate);
+          } else {
+            const candidateIndex = workingAdded.indexOf(candidate);
+            if (candidateIndex >= 0) {
+              workingAdded.splice(candidateIndex, 1);
+              if (candidateIndex < sourceIndex) sourceIndex -= 1;
+            }
+          }
+
+          const mergedPoly = this.createNavPoly(mergedPoints);
+          workingAdded[sourceIndex] = mergedPoly;
+          sourcePoly = mergedPoly;
+          merged = true;
+          break;
+        }
+      }
+    }
+
+    return workingAdded;
+  }
+
+  private getMergedRectanglePoints(polyA: NavPoly, polyB: NavPoly) {
+    const rectA = this.getRectangleBounds(polyA);
+    const rectB = this.getRectangleBounds(polyB);
+    if (!rectA || !rectB) return null;
+
+    if (
+      this.areNumbersEqual(rectA.minY, rectB.minY) &&
+      this.areNumbersEqual(rectA.maxY, rectB.maxY) &&
+      (this.areNumbersEqual(rectA.maxX, rectB.minX) || this.areNumbersEqual(rectB.maxX, rectA.minX))
+    ) {
+      return this.createRectanglePoints(
+        Math.min(rectA.minX, rectB.minX),
+        rectA.minY,
+        Math.max(rectA.maxX, rectB.maxX),
+        rectA.maxY
+      );
+    }
+
+    if (
+      this.areNumbersEqual(rectA.minX, rectB.minX) &&
+      this.areNumbersEqual(rectA.maxX, rectB.maxX) &&
+      (this.areNumbersEqual(rectA.maxY, rectB.minY) || this.areNumbersEqual(rectB.maxY, rectA.minY))
+    ) {
+      return this.createRectanglePoints(
+        rectA.minX,
+        Math.min(rectA.minY, rectB.minY),
+        rectA.maxX,
+        Math.max(rectA.maxY, rectB.maxY)
+      );
+    }
+
+    return null;
+  }
+
+  private getRectangleBounds(poly: NavPoly) {
+    const points = poly.getPoints();
+    if (points.length !== 4) return null;
+
+    const xs = [...new Set(points.map((point) => point.x))].sort((a, b) => a - b);
+    const ys = [...new Set(points.map((point) => point.y))].sort((a, b) => a - b);
+    if (xs.length !== 2 || ys.length !== 2) return null;
+
+    return { minX: xs[0], maxX: xs[1], minY: ys[0], maxY: ys[1] };
+  }
+
+  private createRectanglePoints(minX: number, minY: number, maxX: number, maxY: number) {
+    return [
+      { x: minX, y: minY },
+      { x: maxX, y: minY },
+      { x: maxX, y: maxY },
+      { x: minX, y: maxY },
+    ];
+  }
+
+  private areNumbersEqual(a: number, b: number) {
+    return Math.abs(a - b) <= 0.000001;
   }
 
   private buildPortal(navPoly: NavPoly, edge: Line, overlap: Vector2[]) {

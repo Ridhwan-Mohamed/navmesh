@@ -2,6 +2,12 @@ import NavMesh from "./navmesh";
 import Vector2 from "./math/vector-2";
 
 const v2 = (x: number, y: number) => new Vector2(x, y);
+const rectBounds = (points: Array<{ x: number; y: number }>) => ({
+  minX: Math.min(...points.map((point) => point.x)),
+  minY: Math.min(...points.map((point) => point.y)),
+  maxX: Math.max(...points.map((point) => point.x)),
+  maxY: Math.max(...points.map((point) => point.y)),
+});
 
 describe("An empty NavMesh instance", () => {
   let emptyNavMesh: NavMesh;
@@ -225,9 +231,10 @@ describe("runtime polygon mutation", () => {
     const result = navMesh.replacePolygons([1], [middleA, middleB]);
     const path = navMesh.findPath(v2(5, 5), v2(25, 5));
 
-    expect(result.removedPolys.map((poly) => poly.id)).toEqual([1]);
-    expect(result.addedPolys.map((poly) => poly.id)).toEqual([3, 4]);
+    expect(result.removedPolys.map((poly) => poly.id)).toEqual(expect.arrayContaining([0, 1, 2]));
+    expect(result.addedPolys).toHaveLength(1);
     expect(navMesh.getPolygonById(1)).toBeNull();
+    expect(rectBounds(result.addedPolys[0].getPoints())).toEqual({ minX: 0, minY: 0, maxX: 30, maxY: 10 });
     expect(path).toEqual([v2(5, 5), v2(25, 5)]);
   });
 });
