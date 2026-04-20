@@ -2,9 +2,13 @@
 
 A JS plugin for fast pathfinding using [navigation meshes](https://en.wikipedia.org/wiki/Navigation_mesh), with optional wrappers for the Phaser v2 and Phaser v3 game engines.
 
+This fork also includes runtime navmesh mutation APIs for grid-based worlds and a live Phaser 3 lab that compares accelerated local patching against full navmesh rebuilds while you edit terrain in real time.
+
 [<img src="./doc-source/single-following-agent.gif" width="400">](https://www.mikewesthad.com/navmesh/demo/)
 
 [Interactive demo](https://www.mikewesthad.com/navmesh/demo/)
+
+[Runtime Navmesh Lab](https://ridhwan-mohamed.github.io/navmesh/runtime-navmesh-lab/)
 
 (Note: if you are viewing this on GitHub or NPM, you might want to check out the HTML documentation [here](https://www.mikewesthad.com/navmesh/docs/).)
 
@@ -20,6 +24,7 @@ Table of Contents:
   - [phaser-navmesh (API reference)](#phaser-navmesh-api-reference)
   - [phaser2-navmesh (API reference)](#phaser2-navmesh-api-reference)
 - [Performance Comparison](#performance-comparison)
+- [Runtime Grid Mutation](#runtime-grid-mutation)
 - [Community Examples](#community-examples)
 - [Development](#development)
 - [Changelogs](#changelogs)
@@ -272,6 +277,21 @@ Long paths (600 pixels and greater length), average time per iteration:
         NavMesh is 187.95x faster than Phaser AStar
         NavMesh is 21.65x faster than EasyStar
 ```
+
+## Runtime Grid Mutation
+
+This fork adds two pieces aimed at live-editable worlds:
+
+- `NavMesh#addPolygon`, `removePolygon`, `replacePolygons` for direct runtime polygon mutation
+- `GridNavMeshUpdater` for localized updates to navmeshes that were generated from a boolean grid
+
+`GridNavMeshUpdater` supports:
+
+- `blockTile`, `blockTiles`, `blockRange`
+- `openTile`, `openTiles`, `openRange`
+- `replaceBounds(bounds, sourceGrid)` for rebuilding only a selected slice from the current grid state
+
+That means you can mutate terrain or blockers at runtime without rebuilding the entire navmesh from scratch every edit. The Phaser 3 runtime lab in this fork demonstrates the difference visually and records timings for both approaches side by side.
 
 ## Community Examples
 

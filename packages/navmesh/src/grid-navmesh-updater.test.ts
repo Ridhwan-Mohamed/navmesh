@@ -44,4 +44,30 @@ describe("GridNavMeshUpdater", () => {
     expect(result.addedPolyIds).toEqual([0]);
     expect(navMesh.findPath(v2(25, 35), v2(35, 35))).toEqual([v2(25, 35), v2(35, 35)]);
   });
+
+  it("should replace a local bounds slice from a source grid and split the mesh", () => {
+    const grid = [[true, true, true]];
+    const navMesh = new NavMesh([span]);
+    const updater = new GridNavMeshUpdater(navMesh, { tileWidth: 10, tileHeight: 10 });
+
+    grid[0][1] = false;
+    const result = updater.replaceBounds({ x: 0, y: 0, w: 3, h: 1 }, grid);
+
+    expect(result.removedPolyIds).toEqual([0]);
+    expect(result.addedPolyIds).toEqual([1, 2]);
+    expect(navMesh.findPath(v2(5, 5), v2(25, 5))).toBeNull();
+  });
+
+  it("should connect regions when replaceBounds opens a previously blocked tile", () => {
+    const grid = [[true, false, true]];
+    const navMesh = new NavMesh([left, right]);
+    const updater = new GridNavMeshUpdater(navMesh, { tileWidth: 10, tileHeight: 10 });
+
+    grid[0][1] = true;
+    const result = updater.replaceBounds({ minX: 0, minY: 0, maxX: 2, maxY: 0 }, grid);
+
+    expect(result.removedPolyIds).toEqual([0, 1]);
+    expect(result.addedPolyIds).toEqual([2]);
+    expect(navMesh.findPath(v2(5, 5), v2(25, 5))).toEqual([v2(5, 5), v2(25, 5)]);
+  });
 });

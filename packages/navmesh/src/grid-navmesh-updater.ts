@@ -17,6 +17,28 @@ interface WorldBounds {
   h: number;
 }
 
+export interface GridBoundsInput {
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  minX?: number;
+  minY?: number;
+  maxX?: number;
+  maxY?: number;
+  width?: number;
+  height?: number;
+}
+
+interface NormalizedGridBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+}
+
 export interface GridNavMeshUpdaterOptions {
   tileWidth?: number;
   tileHeight?: number;
@@ -70,6 +92,53 @@ export default class GridNavMeshUpdater {
 
   public openRange(x1: number, y1: number, x2: number, y2: number) {
     return this.openTiles(this.createTileRange(x1, y1, x2, y2));
+  }
+
+  public replaceBounds(bounds: GridBoundsInput, sourceGrid: boolean[][]): GridNavMeshUpdateResult {
+    const normalized = this.normalizeGridBounds(bounds, sourceGrid);
+    if (!normalized) return this.emptyResult();
+
+    const worldBounds = {
+      x: normalized.minX * this.tileWidth,
+      y: normalized.minY * this.tileHeight,
+      w: normalized.width * this.tileWidth,
+      h: normalized.height * this.tileHeight,
+    };
+
+    const affectedPolys = this.navMesh
+      .getPolygons()
+      .filter((poly) => this.polygonIntersectsRect(poly.polygon.points, worldBounds));
+
+    const localGrid: boolean[][] = [];
+    for (let gridY = normalized.minY; gridY <= normalized.maxY; gridY += 1) {
+      const row: boolean[] = [];
+      for (let gridX = normalized.minX; gridX <= normalized.maxX; gridX += 1) {
+        row.push(!!sourceGrid[gridY]?.[gridX]);
+      }
+      localGrid.push(row);
+    }
+
+    const newPolygons = this.extractPolygonsFromGrid(localGrid, worldBounds.x, worldBounds.y);
+
+    if (affectedPolys.length === 0) {
+      const addedPolys = this.navMesh.addPolygons(newPolygons);
+      return {
+        removedPolyIds: [],
+        addedPolyIds: addedPolys.map((poly) => poly.id),
+        neighborPolyIds: [],
+      };
+    }
+
+    const { removedPolys, addedPolys, neighborPolys } = this.navMesh.replacePolygons(
+      affectedPolys,
+      newPolygons
+    );
+
+    return {
+      removedPolyIds: removedPolys.map((poly) => poly.id),
+      addedPolyIds: addedPolys.map((poly) => poly.id),
+      neighborPolyIds: neighborPolys.map((poly) => poly.id),
+    };
   }
 
   private updateTiles(tileCoords: Point[], walkable: boolean): GridNavMeshUpdateResult {
@@ -281,5 +350,43 @@ export default class GridNavMeshUpdater {
 
   private emptyResult(): GridNavMeshUpdateResult {
     return { removedPolyIds: [], addedPolyIds: [], neighborPolyIds: [] };
+  }
+
+  private normalizeGridBounds(bounds: GridBoundsInput, sourceGrid: boolean[][]) {
+    const height = sourceGrid.length;
+    const width = sourceGrid[0]?.length ?? 0;
+    if (!width || !height) return null;
+
+    const rawMinX = bounds.minX ?? bounds.x;
+    const rawMinY = bounds.minY ?? bounds.y;
+    const rawMaxX =
+      bounds.maxX ?? (bounds.x !== undefined && bounds.w !== undefined ? bounds.x + bounds.w - 1 : undefined);
+    const rawMaxY =
+      bounds.maxY ?? (bounds.y !== undefined && bounds.h !== undefined ? bounds.y + bounds.h - 1 : undefined);
+
+    if (
+      rawMinX === undefined ||
+      rawMinY === undefined ||
+      rawMaxX === undefined ||
+      rawMaxY === undefined
+    ) {
+      return null;
+    }
+
+    const minX = Math.max(0, Math.floor(rawMinX));
+    const minY = Math.max(0, Math.floor(rawMinY));
+    const maxX = Math.min(width - 1, Math.floor(rawMaxX));
+    const maxY = Math.min(height - 1, Math.floor(rawMaxY));
+
+    if (maxX < minX || maxY < minY) return null;
+
+    return {
+      minX,
+      minY,
+      maxX,
+      maxY,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1,
+    } as NormalizedGridBounds;
   }
 }
