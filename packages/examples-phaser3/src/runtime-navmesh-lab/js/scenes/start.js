@@ -2,8 +2,8 @@ import Phaser from "phaser";
 import { GridNavMeshUpdater, NavMesh, buildPolysFromGridMap } from "navmesh";
 
 const TILE_SIZE = 32;
-const MAP_WIDTH = 50;
-const MAP_HEIGHT = 50;
+const MAP_WIDTH = 100;
+const MAP_HEIGHT = 100;
 const WORLD_WIDTH = MAP_WIDTH * TILE_SIZE;
 const WORLD_HEIGHT = MAP_HEIGHT * TILE_SIZE;
 const PLAYER_SPEED = 130;
