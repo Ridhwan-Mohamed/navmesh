@@ -5,7 +5,9 @@ const ui = {
   toolButtons: [...document.querySelectorAll("[data-tool]")],
   navButtons: [...document.querySelectorAll("[data-nav-mode]")],
   updateButtons: [...document.querySelectorAll("[data-update-mode]")],
-  panelButtons: [...document.querySelectorAll("[data-panel-toggle]")],
+  zoomButtons: [...document.querySelectorAll("[data-zoom]")],
+  sidebarToggle: document.getElementById("sidebar-toggle"),
+  body: document.body,
   chipToolText: document.getElementById("chip-tool-text"),
   chipToolDot: document.getElementById("chip-tool-dot"),
   chipNavText: document.getElementById("chip-nav-text"),
@@ -32,10 +34,10 @@ const setActive = (buttons, attrName, value) => {
   buttons.forEach((button) => button.classList.toggle("active", button.dataset[attrName] === value));
 };
 
-const syncPanelButton = (panel, button) => {
-  const collapsed = panel.classList.contains("collapsed");
-  button.textContent = collapsed ? "Open" : "Hide";
-  button.setAttribute("aria-expanded", String(!collapsed));
+const syncSidebarButton = () => {
+  const collapsed = ui.body.classList.contains("sidebar-collapsed");
+  ui.sidebarToggle.textContent = collapsed ? ">" : "<";
+  ui.sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
 };
 
 const renderSnapshot = (snapshot) => {
@@ -83,14 +85,17 @@ ui.updateButtons.forEach((button) => {
   button.addEventListener("click", () => scene.setUpdateMode(button.dataset.updateMode));
 });
 
-ui.panelButtons.forEach((button) => {
-  const panel = document.querySelector(`[data-panel="${button.dataset.panelToggle}"]`);
-  if (!panel) return;
-  syncPanelButton(panel, button);
+ui.zoomButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    panel.classList.toggle("collapsed");
-    syncPanelButton(panel, button);
+    if (button.dataset.zoom === "in") scene.zoomIn();
+    if (button.dataset.zoom === "out") scene.zoomOut();
   });
+});
+
+syncSidebarButton();
+ui.sidebarToggle.addEventListener("click", () => {
+  ui.body.classList.toggle("sidebar-collapsed");
+  syncSidebarButton();
 });
 
 const container = document.getElementById("game-container");

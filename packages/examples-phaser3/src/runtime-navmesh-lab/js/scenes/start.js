@@ -205,7 +205,10 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
       frameWidth: TILE_SIZE,
       frameHeight: TILE_SIZE,
     });
-    this.load.image("wall", "assets/wall/stone_interior.png");
+    this.load.spritesheet("wall", "assets/wall/stone_interior.png", {
+      frameWidth: TILE_SIZE,
+      frameHeight: TILE_SIZE,
+    });
 
     DIRECTION_KEYS.forEach((key) => {
       this.load.spritesheet(`brawler-${key}`, `assets/players/brawler/brawler_walk_${key}.png`, {
@@ -243,6 +246,14 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
 
   handleExternalResize() {
     this._fitCameraToWorld(false);
+  }
+
+  zoomIn() {
+    this._applyZoom(1.12);
+  }
+
+  zoomOut() {
+    this._applyZoom(1 / 1.12);
   }
 
   setTool(tool) {
@@ -395,7 +406,21 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
   }
 
   _bindInput() {
-    this.moveKeys = this.input.keyboard.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR,FIVE");
+    this.moveKeys = this.input.keyboard.addKeys({
+      upW: Phaser.Input.Keyboard.KeyCodes.W,
+      leftA: Phaser.Input.Keyboard.KeyCodes.A,
+      downS: Phaser.Input.Keyboard.KeyCodes.S,
+      rightD: Phaser.Input.Keyboard.KeyCodes.D,
+      upArrow: Phaser.Input.Keyboard.KeyCodes.UP,
+      leftArrow: Phaser.Input.Keyboard.KeyCodes.LEFT,
+      downArrow: Phaser.Input.Keyboard.KeyCodes.DOWN,
+      rightArrow: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      one: Phaser.Input.Keyboard.KeyCodes.ONE,
+      two: Phaser.Input.Keyboard.KeyCodes.TWO,
+      three: Phaser.Input.Keyboard.KeyCodes.THREE,
+      four: Phaser.Input.Keyboard.KeyCodes.FOUR,
+      five: Phaser.Input.Keyboard.KeyCodes.FIVE,
+    });
 
     this.input.on("pointerdown", (pointer) => {
       if (pointer.rightButtonDown()) return;
@@ -429,14 +454,7 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     });
 
     this.input.on("wheel", (pointer, _objects, _dx, dy) => {
-      const camera = this.cameras.main;
-      const oldZoom = camera.zoom;
-      const nextZoom = clamp(oldZoom * (dy > 0 ? 0.91 : 1.1), 0.48, 1.65);
-      const before = pointer.positionToCamera(camera);
-      camera.setZoom(nextZoom);
-      const after = pointer.positionToCamera(camera);
-      camera.scrollX += before.x - after.x;
-      camera.scrollY += before.y - after.y;
+      this._applyZoom(dy > 0 ? 0.91 : 1.1, pointer);
     });
 
     this.input.keyboard.on("keydown-ONE", () => this.setTool(TOOLS.move));
@@ -500,7 +518,7 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     }
 
     if (this.walls[y][x]) {
-      const wall = this.add.image(center.x, center.y, "wall").setDepth(18);
+      const wall = this.add.sprite(center.x, center.y, "wall", 1).setDepth(18);
       this.wallLayer.add(wall);
       cell.wall = wall;
     }
@@ -656,10 +674,24 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
   _updateCamera(delta) {
     const camera = this.cameras.main;
     const step = (this.cameraPanSpeed * (delta / 1000)) / camera.zoom;
-    if (this.moveKeys.W.isDown) camera.scrollY -= step;
-    if (this.moveKeys.S.isDown) camera.scrollY += step;
-    if (this.moveKeys.A.isDown) camera.scrollX -= step;
-    if (this.moveKeys.D.isDown) camera.scrollX += step;
+    if (this.moveKeys.upW.isDown || this.moveKeys.upArrow.isDown) camera.scrollY -= step;
+    if (this.moveKeys.downS.isDown || this.moveKeys.downArrow.isDown) camera.scrollY += step;
+    if (this.moveKeys.leftA.isDown || this.moveKeys.leftArrow.isDown) camera.scrollX -= step;
+    if (this.moveKeys.rightD.isDown || this.moveKeys.rightArrow.isDown) camera.scrollX += step;
+  }
+
+  _applyZoom(factor, pointer) {
+    const camera = this.cameras.main;
+    const oldZoom = camera.zoom;
+    const nextZoom = clamp(oldZoom * factor, 0.48, 1.65);
+    if (Math.abs(nextZoom - oldZoom) <= 0.0001) return;
+    const before = pointer ? pointer.positionToCamera(camera) : null;
+    camera.setZoom(nextZoom);
+    if (pointer && before) {
+      const after = pointer.positionToCamera(camera);
+      camera.scrollX += before.x - after.x;
+      camera.scrollY += before.y - after.y;
+    }
   }
 
   _drawSelection(time) {
