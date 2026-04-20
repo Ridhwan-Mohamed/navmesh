@@ -15,6 +15,7 @@ const ui = {
   chipUpdateText: document.getElementById("chip-update-text"),
   chipUpdateDot: document.getElementById("chip-update-dot"),
   statusSummary: document.getElementById("status-summary"),
+  statusAlert: document.getElementById("status-alert"),
   lastPatchLabel: document.getElementById("last-patch-label"),
   statFastLast: document.getElementById("stat-fast-last"),
   statFastAvg: document.getElementById("stat-fast-avg"),
@@ -55,6 +56,8 @@ const renderSnapshot = (snapshot) => {
   ui.chipUpdateDot.style.color = snapshot.updateModeColor;
 
   ui.statusSummary.textContent = snapshot.summary;
+  ui.statusAlert.textContent = snapshot.alert?.message || "";
+  ui.statusAlert.className = `alert${snapshot.alert?.message ? ` visible ${snapshot.alert.level || "info"}` : ""}`;
   ui.lastPatchLabel.textContent = snapshot.lastPatchLabel;
 
   ui.statFastLast.textContent = snapshot.stats.accelerated.last;

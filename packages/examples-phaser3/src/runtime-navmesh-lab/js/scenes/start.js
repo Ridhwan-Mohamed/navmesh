@@ -41,14 +41,14 @@ const NAV_META = {
 
 const UPDATE_META = {
   accelerated: { label: "Accelerated Patch", color: "#f1c96c" },
-  legacy: { label: "Legacy Rebuild", color: "#dd6a5f" },
+  legacy: { label: "Phaser Default Navmesh", color: "#dd6a5f" },
 };
 
 const DIRECTION_KEYS = ["down", "down_left", "down_right", "up", "up_left", "up_right"];
 const SWIM_KEYS = ["up", "down", "side"];
 const ACCELERATED_MODE_SUMMARY =
   "Accelerated mode stitches tile edits into the existing navmesh instead of rebuilding the whole map.";
-const LEGACY_MODE_SUMMARY = "Legacy mode rebuilds the full navmesh after every edit.";
+const LEGACY_MODE_SUMMARY = "Phaser default navmesh rebuilds the full navmesh after every edit.";
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const formatMs = (value) => `${value.toFixed(2)} ms`;
@@ -192,6 +192,7 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     this.stats = { accelerated: [], legacy: [] };
     this.lastSummary = ACCELERATED_MODE_SUMMARY;
     this.lastPatchLabel = "Last patch: waiting for edit";
+    this.alert = { message: "", level: "info" };
     this.cameraPanSpeed = 700;
     this.lastPaintKey = null;
   }
@@ -580,20 +581,26 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     const endResult = navMesh.findClosestMeshPoint(new Phaser.Math.Vector2(target.x, target.y));
 
     if (!startResult.point || !endResult.point) {
+      this._setAlert("No valid navmesh point exists for that move command.", "error");
       this._flashCommand(target.x, target.y, 0xdd6a5f);
+      this._renderUi();
       return;
     }
 
     const path = navMesh.findPath(startResult.point, endResult.point);
     if (!path || path.length === 0) {
+      this._setAlert("Path blocked. Change terrain, remove walls, or switch traversal mode.", "error");
       this._flashCommand(target.x, target.y, 0xdd6a5f);
+      this._renderUi();
       return;
     }
 
     this.player.path = path.map((point) => ({ x: point.x, y: point.y }));
     if (this.player.path.length > 1) this.player.path.shift();
     this.player.goalPoint = target;
+    this._setAlert("", "info");
     this._flashCommand(endResult.point.x, endResult.point.y, 0xf1c96c);
+    this._renderUi();
   }
 
   _repathToGoal() {
@@ -897,12 +904,16 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     this.lastSummary =
       this.updateMode === UPDATE_MODES.accelerated
         ? `Accelerated edit stitched ${changeSummary} in ${formatMs(timing)} while keeping the rest of the mesh intact.`
-        : `Legacy edit rebuilt both navmeshes from the full ${MAP_WIDTH}x${MAP_HEIGHT} map in ${formatMs(timing)}.`;
+        : `Phaser default navmesh rebuilt both navmeshes from the full ${MAP_WIDTH}x${MAP_HEIGHT} map in ${formatMs(timing)}.`;
 
     this._flashPatch(redrawBounds, this.updateMode);
     this._repathToGoal();
     this._refreshOverlay();
     this._renderUi();
+  }
+
+  _setAlert(message, level = "info") {
+    this.alert = { message, level };
   }
 
   _applyAcceleratedPatch(meshChanges) {
@@ -1035,6 +1046,7 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
       updateModeLabel: UPDATE_META[this.updateMode].label,
       updateModeColor: UPDATE_META[this.updateMode].color,
       summary: this.lastSummary,
+      alert: this.alert,
       lastPatchLabel: this.lastPatchLabel,
       activePolygons: this._activeMesh().getPolygons().length,
       activeWalkableTiles,

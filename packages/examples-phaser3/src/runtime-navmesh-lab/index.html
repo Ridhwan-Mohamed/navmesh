@@ -58,6 +58,13 @@
           linear-gradient(180deg, rgba(16, 28, 34, 0.96), rgba(9, 16, 21, 0.98)),
           linear-gradient(180deg, rgba(255, 220, 148, 0.08), transparent 24%);
         border-right: 1px solid rgba(255, 234, 185, 0.12);
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .sidebar::-webkit-scrollbar {
+        width: 0;
+        height: 0;
       }
 
       .sidebar-inner {
@@ -102,30 +109,6 @@
         overflow: hidden;
       }
 
-      .topbar {
-        position: absolute;
-        top: 14px;
-        left: 14px;
-        right: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 10px 12px;
-        border-radius: 16px;
-        border: 1px solid var(--panel-border);
-        background: linear-gradient(180deg, rgba(17, 28, 34, 0.88), rgba(10, 18, 23, 0.88));
-        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
-        backdrop-filter: blur(12px);
-        z-index: 5;
-        pointer-events: auto;
-      }
-
-      .topbar-copy {
-        min-width: 0;
-        flex: 1;
-      }
-
       .eyebrow {
         margin-bottom: 4px;
         font-family: "Bungee", cursive;
@@ -133,7 +116,7 @@
         color: var(--gold);
       }
 
-      .topbar-copy strong {
+      .panel-lead {
         display: block;
         margin: 0 0 4px;
         font-family: "Bungee", cursive;
@@ -142,20 +125,11 @@
         color: var(--ink);
       }
 
-      .topbar p,
       .panel p {
         margin: 0;
         color: var(--muted);
         font-size: 13px;
         line-height: 1.45;
-      }
-
-      .topbar-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
       }
 
       .panel {
@@ -234,6 +208,32 @@
         background: rgba(255, 255, 255, 0.04);
         font-size: 12px;
         font-weight: 700;
+      }
+
+      .alert {
+        display: none;
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .alert.visible {
+        display: block;
+      }
+
+      .alert.error {
+        border-color: rgba(221, 106, 95, 0.48);
+        background: rgba(86, 26, 26, 0.55);
+        color: #ffd8d2;
+      }
+
+      .alert.info {
+        border-color: rgba(120, 223, 242, 0.35);
+        background: rgba(17, 54, 66, 0.55);
+        color: #d1f6ff;
       }
 
       .chip-dot {
@@ -323,15 +323,6 @@
         .stats-grid {
           grid-template-columns: minmax(0, 1fr);
         }
-
-        .topbar {
-          flex-direction: column;
-          align-items: stretch;
-        }
-
-        .topbar-actions {
-          justify-content: flex-start;
-        }
       }
     </style>
   </head>
@@ -342,15 +333,30 @@
       <div class="sidebar-inner">
         <section class="panel">
           <h2>Runtime Navmesh Lab</h2>
+          <div class="eyebrow">RUNTIME NAVMESH MUTATION / PHASER 3 LAB</div>
+          <div class="panel-lead">Accelerated Grid Patch Demo</div>
           <p>
             This page demonstrates live runtime navmesh mutation on a 100x100 PDV-themed board. Compare legacy full
             rebuilds against accelerated local patches while editing terrain, switching traversal rules, and forcing
             the brawler to repath through the changing world.
           </p>
+          <div class="chip-row">
+            <div class="chip"><span class="chip-dot" id="chip-tool-dot"></span><span id="chip-tool-text">Move</span></div>
+            <div class="chip"><span class="chip-dot" id="chip-nav-dot"></span><span id="chip-nav-text">Land Only</span></div>
+            <div class="chip"><span class="chip-dot" id="chip-update-dot"></span><span id="chip-update-text">Accelerated</span></div>
+          </div>
+          <p id="status-summary" style="margin-top: 10px;">
+            Accelerated mode stitches tile edits into the existing navmesh instead of rebuilding the whole map.
+          </p>
+          <div class="button-row" style="margin-top: 12px;">
+            <button type="button" class="zoom-button" data-zoom="out">Zoom Out</button>
+            <button type="button" class="zoom-button" data-zoom="in">Zoom In</button>
+          </div>
+          <div class="alert" id="status-alert"></div>
           <div class="help-list">
             <div>Move mode sends the brawler to the nearest valid point on the active navmesh.</div>
             <div>Land and water use a 2x2 brush so shoreline tiles stay coherent. Walls stay 1x1.</div>
-            <div>Pan with <strong>W A S D</strong> or the arrow keys. Zoom with the wheel or the top bar buttons.</div>
+            <div>Pan with <strong>W A S D</strong> or the arrow keys. Zoom with the wheel or the zoom buttons.</div>
             <div>Hotkeys: <strong>1</strong> move, <strong>2</strong> land, <strong>3</strong> water, <strong>4</strong> wall, <strong>5</strong> erase wall.</div>
           </div>
         </section>
@@ -378,9 +384,9 @@
 
         <section class="panel">
           <h2>Update Path</h2>
-          <p>Legacy rebuild regenerates the full mesh. Accelerated patch mutates only changed tiles and reconnects locally.</p>
+          <p>Phaser default navmesh rebuild regenerates the full mesh. Accelerated patch mutates only changed tiles and reconnects locally.</p>
           <div class="button-row">
-            <button data-update-mode="legacy">Legacy Rebuild</button>
+            <button data-update-mode="legacy">Phaser Default Navmesh</button>
             <button data-update-mode="accelerated">Accelerated Patch</button>
           </div>
           <div class="chip-row">
@@ -423,26 +429,7 @@
       </div>
     </aside>
 
-    <div id="game-shell">
-      <div id="game-container">
-        <div class="topbar">
-          <div class="topbar-copy">
-            <div class="eyebrow">RUNTIME NAVMESH MUTATION / PHASER 3 LAB</div>
-            <strong>Accelerated Grid Patch Demo</strong>
-            <p id="status-summary">
-              Accelerated mode stitches tile edits into the existing navmesh instead of rebuilding the whole map.
-            </p>
-          </div>
-          <div class="topbar-actions">
-            <div class="chip"><span class="chip-dot" id="chip-tool-dot"></span><span id="chip-tool-text">Move</span></div>
-            <div class="chip"><span class="chip-dot" id="chip-nav-dot"></span><span id="chip-nav-text">Land Only</span></div>
-            <div class="chip"><span class="chip-dot" id="chip-update-dot"></span><span id="chip-update-text">Accelerated</span></div>
-            <button type="button" class="zoom-button" data-zoom="out">-</button>
-            <button type="button" class="zoom-button" data-zoom="in">+</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="game-shell"><div id="game-container"></div></div>
 
     <script src="js/main.js"></script>
   </body>
