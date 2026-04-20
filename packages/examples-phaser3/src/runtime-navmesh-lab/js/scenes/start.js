@@ -160,6 +160,8 @@ const landBridge = (terrain, xStart, xEnd, yStart, yEnd) => {
   }
 };
 
+const evenTile = (value, max) => clampBrushOrigin(clamp(Math.round(value), 0, max - 2), max);
+
 const chooseHorizontalDiagonal = (vx, lastDirection) => {
   if (vx > 0) return lastDirection === "up_right" || lastDirection === "up" ? "up_right" : "down_right";
   return lastDirection === "up_left" || lastDirection === "up" ? "up_left" : "down_left";
@@ -339,13 +341,45 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
       }
     }
 
-    ellipseWater(this.terrain, 24, 24, 7, 5);
-    ellipseWater(this.terrain, 37, 12, 5, 4);
-    ellipseWater(this.terrain, 13, 36, 4, 3);
-    waterRibbon(this.terrain, 17, 1);
-    landBridge(this.terrain, 12, 15, 15, 18);
-    landBridge(this.terrain, 26, 29, 16, 19);
-    landBridge(this.terrain, 39, 42, 17, 20);
+    const lakes = [
+      { x: MAP_WIDTH * 0.18, y: MAP_HEIGHT * 0.2, rx: MAP_WIDTH * 0.09, ry: MAP_HEIGHT * 0.07 },
+      { x: MAP_WIDTH * 0.42, y: MAP_HEIGHT * 0.14, rx: MAP_WIDTH * 0.06, ry: MAP_HEIGHT * 0.05 },
+      { x: MAP_WIDTH * 0.72, y: MAP_HEIGHT * 0.22, rx: MAP_WIDTH * 0.08, ry: MAP_HEIGHT * 0.06 },
+      { x: MAP_WIDTH * 0.2, y: MAP_HEIGHT * 0.68, rx: MAP_WIDTH * 0.07, ry: MAP_HEIGHT * 0.05 },
+      { x: MAP_WIDTH * 0.56, y: MAP_HEIGHT * 0.62, rx: MAP_WIDTH * 0.1, ry: MAP_HEIGHT * 0.07 },
+      { x: MAP_WIDTH * 0.82, y: MAP_HEIGHT * 0.76, rx: MAP_WIDTH * 0.06, ry: MAP_HEIGHT * 0.05 },
+    ];
+
+    lakes.forEach((lake) => {
+      ellipseWater(
+        this.terrain,
+        evenTile(lake.x, MAP_WIDTH),
+        evenTile(lake.y, MAP_HEIGHT),
+        Math.max(3, Math.round(lake.rx)),
+        Math.max(3, Math.round(lake.ry))
+      );
+    });
+
+    [0.3, 0.56, 0.78].forEach((ratio, index) => {
+      waterRibbon(this.terrain, evenTile(MAP_HEIGHT * ratio, MAP_HEIGHT), index === 1 ? 2 : 1);
+    });
+
+    const bridges = [
+      { x1: 0.12, x2: 0.18, y1: 0.28, y2: 0.33 },
+      { x1: 0.34, x2: 0.4, y1: 0.44, y2: 0.49 },
+      { x1: 0.58, x2: 0.65, y1: 0.3, y2: 0.35 },
+      { x1: 0.76, x2: 0.82, y1: 0.62, y2: 0.67 },
+    ];
+
+    bridges.forEach((bridge) => {
+      landBridge(
+        this.terrain,
+        evenTile(MAP_WIDTH * bridge.x1, MAP_WIDTH),
+        evenTile(MAP_WIDTH * bridge.x2, MAP_WIDTH),
+        evenTile(MAP_HEIGHT * bridge.y1, MAP_HEIGHT),
+        evenTile(MAP_HEIGHT * bridge.y2, MAP_HEIGHT)
+      );
+    });
 
     this._rebuildAllGrids();
   }
@@ -997,7 +1031,7 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     const zoom = clamp(Math.min((width - 64) / WORLD_WIDTH, (height - 64) / WORLD_HEIGHT), 0.5, 1);
     if (forceCenter || camera.zoom < 0.1) {
       camera.setZoom(zoom);
-      camera.centerOn(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
+      camera.setScroll(0, 0);
       return;
     }
     camera.setZoom(clamp(camera.zoom, 0.48, 1.65));

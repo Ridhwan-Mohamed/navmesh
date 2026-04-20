@@ -57,7 +57,7 @@ const renderSnapshot = (snapshot) => {
 
   ui.statusSummary.textContent = snapshot.summary;
   ui.statusAlert.textContent = snapshot.alert?.message || "";
-  ui.statusAlert.className = `alert${snapshot.alert?.message ? ` visible ${snapshot.alert.level || "info"}` : ""}`;
+  ui.statusAlert.className = `screen-alert${snapshot.alert?.message ? ` visible ${snapshot.alert.level || "info"}` : ""}`;
   ui.lastPatchLabel.textContent = snapshot.lastPatchLabel;
 
   ui.statFastLast.textContent = snapshot.stats.accelerated.last;
