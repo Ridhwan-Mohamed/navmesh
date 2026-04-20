@@ -72,6 +72,38 @@ const getTileCenter = (x, y) => ({
   y: y * TILE_SIZE + TILE_SIZE / 2,
 });
 
+const clampBrushOrigin = (value, max) => clamp(Math.floor(value / 2) * 2, 0, max - 2);
+
+const setTerrainBlock = (terrain, x, y, tileType) => {
+  const originX = clampBrushOrigin(x, MAP_WIDTH);
+  const originY = clampBrushOrigin(y, MAP_HEIGHT);
+  for (let dy = 0; dy < 2; dy += 1) {
+    for (let dx = 0; dx < 2; dx += 1) {
+      terrain[originY + dy][originX + dx] = tileType;
+    }
+  }
+};
+
+const boundsFromTiles = (tiles) => {
+  if (!tiles.length) return null;
+  return normalizeBounds({
+    minX: Math.min(...tiles.map((tile) => tile.x)),
+    minY: Math.min(...tiles.map((tile) => tile.y)),
+    maxX: Math.max(...tiles.map((tile) => tile.x)),
+    maxY: Math.max(...tiles.map((tile) => tile.y)),
+  });
+};
+
+const uniqueByKey = (items, keyFn) => {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = keyFn(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const normalizeBounds = (bounds) => {
   if (!bounds) return null;
   const minX = clamp(Math.floor(bounds.minX), 0, MAP_WIDTH - 1);
@@ -101,29 +133,29 @@ const expandBounds = (bounds, pad = 1) => {
 };
 
 const ellipseWater = (terrain, centerX, centerY, radiusX, radiusY) => {
-  for (let y = 0; y < MAP_HEIGHT; y += 1) {
-    for (let x = 0; x < MAP_WIDTH; x += 1) {
-      const dx = (x - centerX) / radiusX;
-      const dy = (y - centerY) / radiusY;
-      if (dx * dx + dy * dy <= 1) terrain[y][x] = "water";
+  for (let y = 0; y < MAP_HEIGHT; y += 2) {
+    for (let x = 0; x < MAP_WIDTH; x += 2) {
+      const dx = (x + 0.5 - centerX) / radiusX;
+      const dy = (y + 0.5 - centerY) / radiusY;
+      if (dx * dx + dy * dy <= 1) setTerrainBlock(terrain, x, y, "water");
     }
   }
 };
 
 const waterRibbon = (terrain, centerY, halfWidth = 1) => {
-  for (let x = 4; x < MAP_WIDTH - 4; x += 1) {
+  for (let x = 4; x < MAP_WIDTH - 4; x += 2) {
     const wave = Math.round(Math.sin(x / 4.2) * 3.3 + Math.cos(x / 7.1) * 1.2);
-    const y = clamp(centerY + wave, 3, MAP_HEIGHT - 4);
+    const y = clampBrushOrigin(clamp(centerY + wave, 2, MAP_HEIGHT - 4), MAP_HEIGHT);
     for (let offset = -halfWidth; offset <= halfWidth; offset += 1) {
-      terrain[clamp(y + offset, 0, MAP_HEIGHT - 1)][x] = "water";
+      setTerrainBlock(terrain, x, y + offset * 2, "water");
     }
   }
 };
 
 const landBridge = (terrain, xStart, xEnd, yStart, yEnd) => {
-  for (let y = yStart; y <= yEnd; y += 1) {
-    for (let x = xStart; x <= xEnd; x += 1) {
-      terrain[y][x] = "grass";
+  for (let y = yStart; y <= yEnd; y += 2) {
+    for (let x = xStart; x <= xEnd; x += 2) {
+      setTerrainBlock(terrain, x, y, "grass");
     }
   }
 };
@@ -289,8 +321,8 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
 
     for (let y = 0; y < MAP_HEIGHT; y += 1) {
       for (let x = 0; x < MAP_WIDTH; x += 1) {
-        if (x < 3 || y < 3 || x >= MAP_WIDTH - 3 || y >= MAP_HEIGHT - 3) {
-          this.terrain[y][x] = "water";
+        if (x < 4 || y < 4 || x >= MAP_WIDTH - 4 || y >= MAP_HEIGHT - 4) {
+          setTerrainBlock(this.terrain, x, y, "water");
         }
       }
     }
@@ -313,12 +345,13 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     this.navGraphics = this.add.graphics().setDepth(70);
     this.patchGraphics = this.add.graphics().setDepth(72);
     this.hoverGraphics = this.add.graphics().setDepth(75);
-    this.selectionGraphics = this.add.graphics().setDepth(76);
+    this.selectionGraphics = this.add.graphics().setDepth(29);
     this.pathGraphics = this.add.graphics().setDepth(77);
     this.commandGraphics = this.add.graphics().setDepth(78);
   }
 
   _createBackdrop() {
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.add.rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH + 160, WORLD_HEIGHT + 160, 0x0c4251)
       .setDepth(-20)
       .setStrokeStyle(26, 0x2f8597, 0.4);
@@ -631,11 +664,14 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
 
   _drawSelection(time) {
     this.selectionGraphics.clear();
-    const pulse = 1 + Math.sin(time * 0.006) * 0.08;
-    this.selectionGraphics.lineStyle(3, 0xf1c96c, 0.92);
-    this.selectionGraphics.strokeCircle(this.player.x, this.player.y + 7, 17 * pulse);
-    this.selectionGraphics.lineStyle(1, 0xffffff, 0.75);
-    this.selectionGraphics.strokeCircle(this.player.x, this.player.y + 7, 22 * pulse);
+    const pulse = 1 + 0.06 * Math.sin(time / 120);
+    const baseW = Math.max(18, Math.min(34, (this.player.displayWidth || TILE_SIZE) * 0.72));
+    const baseH = Math.max(8, Math.min(16, baseW * 0.44));
+    const offsetY = Math.max(10, (this.player.displayHeight || TILE_SIZE) * 0.34);
+    this.selectionGraphics.fillStyle(0x0284c7, 0.18);
+    this.selectionGraphics.lineStyle(2, 0xcffafe, 0.95);
+    this.selectionGraphics.fillEllipse(this.player.x, this.player.y + offsetY, baseW * pulse, baseH * pulse);
+    this.selectionGraphics.strokeEllipse(this.player.x, this.player.y + offsetY, baseW * pulse, baseH * pulse);
   }
 
   _drawPath(time) {
@@ -696,54 +732,82 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     const tile = this._pointerToTile(pointer);
     if (!tile) return;
     const color = Phaser.Display.Color.HexStringToColor(TOOL_META[this.tool].color).color;
+    const tiles = this._brushTilesForTool(tile.x, tile.y);
     this.hoverGraphics.lineStyle(2, color, 0.9);
     this.hoverGraphics.fillStyle(color, this.tool === TOOLS.move ? 0.06 : 0.18);
-    this.hoverGraphics.fillRect(tile.x * TILE_SIZE, tile.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-    this.hoverGraphics.strokeRect(tile.x * TILE_SIZE, tile.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    tiles.forEach((brushTile) => {
+      this.hoverGraphics.fillRect(brushTile.x * TILE_SIZE, brushTile.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+      this.hoverGraphics.strokeRect(brushTile.x * TILE_SIZE, brushTile.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    });
+  }
+
+  _brushTilesForTool(x, y) {
+    if (this.tool === TOOLS.land || this.tool === TOOLS.water) {
+      const originX = clampBrushOrigin(x, MAP_WIDTH);
+      const originY = clampBrushOrigin(y, MAP_HEIGHT);
+      return [
+        { x: originX, y: originY },
+        { x: originX + 1, y: originY },
+        { x: originX, y: originY + 1 },
+        { x: originX + 1, y: originY + 1 },
+      ];
+    }
+
+    return [{ x, y }];
   }
 
   _applyTool(x, y) {
-    const key = `${x},${y}`;
+    const brushTiles = this._brushTilesForTool(x, y);
+    const key = `${this.tool}:${brushTiles.map((tile) => `${tile.x},${tile.y}`).join("|")}`;
     if (key === this.lastPaintKey) return;
     this.lastPaintKey = key;
-    const previousLandWalkable = this.landGrid[y][x];
-    const previousAmphibiousWalkable = this.amphibiousGrid[y][x];
+    const previousStates = new Map(
+      brushTiles.map((tile) => [
+        `${tile.x},${tile.y}`,
+        {
+          landWalkable: this.landGrid[tile.y][tile.x],
+          amphibiousWalkable: this.amphibiousGrid[tile.y][tile.x],
+        },
+      ])
+    );
 
     let changed = false;
-    switch (this.tool) {
-      case TOOLS.land:
-        if (this.terrain[y][x] !== "grass" || this.walls[y][x]) {
-          this.terrain[y][x] = "grass";
-          this.walls[y][x] = false;
-          changed = true;
-        }
-        break;
-      case TOOLS.water:
-        if (this.terrain[y][x] !== "water" || this.walls[y][x]) {
-          this.terrain[y][x] = "water";
-          this.walls[y][x] = false;
-          changed = true;
-        }
-        break;
-      case TOOLS.wall:
-        if (!this.walls[y][x]) {
-          this.walls[y][x] = true;
-          changed = true;
-        }
-        break;
-      case TOOLS.eraseWall:
-        if (this.walls[y][x]) {
-          this.walls[y][x] = false;
-          changed = true;
-        }
-        break;
-      default:
-        break;
-    }
+    brushTiles.forEach((tile) => {
+      switch (this.tool) {
+        case TOOLS.land:
+          if (this.terrain[tile.y][tile.x] !== "grass" || this.walls[tile.y][tile.x]) {
+            this.terrain[tile.y][tile.x] = "grass";
+            this.walls[tile.y][tile.x] = false;
+            changed = true;
+          }
+          break;
+        case TOOLS.water:
+          if (this.terrain[tile.y][tile.x] !== "water" || this.walls[tile.y][tile.x]) {
+            this.terrain[tile.y][tile.x] = "water";
+            this.walls[tile.y][tile.x] = false;
+            changed = true;
+          }
+          break;
+        case TOOLS.wall:
+          if (!this.walls[tile.y][tile.x]) {
+            this.walls[tile.y][tile.x] = true;
+            changed = true;
+          }
+          break;
+        case TOOLS.eraseWall:
+          if (this.walls[tile.y][tile.x]) {
+            this.walls[tile.y][tile.x] = false;
+            changed = true;
+          }
+          break;
+        default:
+          break;
+      }
+    });
 
     if (!changed) return;
 
-    const redrawBounds = expandBounds({ minX: x, minY: y, maxX: x, maxY: y }, 1);
+    const redrawBounds = expandBounds(boundsFromTiles(brushTiles), 1);
     this._redrawBounds(redrawBounds);
 
     for (let gy = redrawBounds.minY; gy <= redrawBounds.maxY; gy += 1) {
@@ -752,19 +816,34 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
       }
     }
 
-    const meshChanges = [];
-    if (previousLandWalkable !== this.landGrid[y][x]) {
-      meshChanges.push({ label: "land", updater: this.landUpdater, walkable: this.landGrid[y][x], x, y });
-    }
-    if (previousAmphibiousWalkable !== this.amphibiousGrid[y][x]) {
-      meshChanges.push({
-        label: "amphibious",
-        updater: this.amphibiousUpdater,
-        walkable: this.amphibiousGrid[y][x],
-        x,
-        y,
-      });
-    }
+    const meshChanges = uniqueByKey(
+      brushTiles.flatMap((tile) => {
+        const previous = previousStates.get(`${tile.x},${tile.y}`);
+        const changes = [];
+        if (previous?.landWalkable !== this.landGrid[tile.y][tile.x]) {
+          changes.push({
+            key: `land:${tile.x},${tile.y}`,
+            label: "land",
+            updater: this.landUpdater,
+            walkable: this.landGrid[tile.y][tile.x],
+            x: tile.x,
+            y: tile.y,
+          });
+        }
+        if (previous?.amphibiousWalkable !== this.amphibiousGrid[tile.y][tile.x]) {
+          changes.push({
+            key: `amphibious:${tile.x},${tile.y}`,
+            label: "amphibious",
+            updater: this.amphibiousUpdater,
+            walkable: this.amphibiousGrid[tile.y][tile.x],
+            x: tile.x,
+            y: tile.y,
+          });
+        }
+        return changes;
+      }),
+      (change) => change.key
+    );
 
     const timing =
       this.updateMode === UPDATE_MODES.accelerated
