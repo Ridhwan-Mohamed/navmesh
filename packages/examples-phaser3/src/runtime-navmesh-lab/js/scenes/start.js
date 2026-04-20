@@ -46,6 +46,9 @@ const UPDATE_META = {
 
 const DIRECTION_KEYS = ["down", "down_left", "down_right", "up", "up_left", "up_right"];
 const SWIM_KEYS = ["up", "down", "side"];
+const ACCELERATED_MODE_SUMMARY =
+  "Accelerated mode stitches tile edits into the existing navmesh instead of rebuilding the whole map.";
+const LEGACY_MODE_SUMMARY = "Legacy mode rebuilds the full navmesh after every edit.";
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const formatMs = (value) => `${value.toFixed(2)} ms`;
@@ -155,8 +158,8 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     this.navMode = NAV_MODES.land;
     this.updateMode = UPDATE_MODES.accelerated;
     this.stats = { accelerated: [], legacy: [] };
-    this.lastSummary = "Accelerated mode rebuilds only the selected grid slice instead of the entire navmesh.";
-    this.lastPatchLabel = "Last patch: local 3x3";
+    this.lastSummary = ACCELERATED_MODE_SUMMARY;
+    this.lastPatchLabel = "Last patch: waiting for edit";
     this.cameraPanSpeed = 700;
     this.lastPaintKey = null;
   }
@@ -231,10 +234,7 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
   setUpdateMode(mode) {
     if (!UPDATE_MODES[mode]) return;
     this.updateMode = mode;
-    this.lastSummary =
-      mode === UPDATE_MODES.accelerated
-        ? "Accelerated mode rebuilds only the selected grid slice instead of the entire navmesh."
-        : "Legacy mode rebuilds the full navmesh after every edit.";
+    this.lastSummary = mode === UPDATE_MODES.accelerated ? ACCELERATED_MODE_SUMMARY : LEGACY_MODE_SUMMARY;
     if (!this.terrain) return;
     this._renderUi();
   }
@@ -496,15 +496,15 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     if (waterS) add("grass-edge-water", 180);
     if (waterW) add("grass-edge-water", 270);
 
-    if (!waterN && !waterW && waterNW) add("grass-corner-water", 0);
-    if (!waterN && !waterE && waterNE) add("grass-corner-water", 90);
-    if (!waterS && !waterE && waterSE) add("grass-corner-water", 180);
-    if (!waterS && !waterW && waterSW) add("grass-corner-water", 270);
+    if (waterN && waterW) add("grass-corner-water", 0);
+    if (waterN && waterE) add("grass-corner-water", 90);
+    if (waterS && waterE) add("grass-corner-water", 180);
+    if (waterS && waterW) add("grass-corner-water", 270);
 
-    if (waterN && waterW && !waterNW) add("grass-inner-corner-water", 0);
-    if (waterN && waterE && !waterNE) add("grass-inner-corner-water", 90);
-    if (waterS && waterE && !waterSE) add("grass-inner-corner-water", 180);
-    if (waterS && waterW && !waterSW) add("grass-inner-corner-water", 270);
+    if (!waterN && !waterW && waterNW) add("grass-inner-corner-water", 0);
+    if (!waterN && !waterE && waterNE) add("grass-inner-corner-water", 90);
+    if (!waterS && !waterE && waterSE) add("grass-inner-corner-water", 180);
+    if (!waterS && !waterW && waterSW) add("grass-inner-corner-water", 270);
 
     return overlays;
   }
@@ -525,8 +525,8 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
   _commandPlayer(tileX, tileY) {
     const target = getTileCenter(tileX, tileY);
     const navMesh = this._activeMesh();
-    const startResult = navMesh.findClosestMeshPoint(new Phaser.Math.Vector2(this.player.x, this.player.y), TILE_SIZE * 4);
-    const endResult = navMesh.findClosestMeshPoint(new Phaser.Math.Vector2(target.x, target.y), TILE_SIZE * 3);
+    const startResult = navMesh.findClosestMeshPoint(new Phaser.Math.Vector2(this.player.x, this.player.y));
+    const endResult = navMesh.findClosestMeshPoint(new Phaser.Math.Vector2(target.x, target.y));
 
     if (!startResult.point || !endResult.point) {
       this._flashCommand(target.x, target.y, 0xdd6a5f);
@@ -706,6 +706,8 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     const key = `${x},${y}`;
     if (key === this.lastPaintKey) return;
     this.lastPaintKey = key;
+    const previousLandWalkable = this.landGrid[y][x];
+    const previousAmphibiousWalkable = this.amphibiousGrid[y][x];
 
     let changed = false;
     switch (this.tool) {
@@ -750,22 +752,40 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
       }
     }
 
+    const meshChanges = [];
+    if (previousLandWalkable !== this.landGrid[y][x]) {
+      meshChanges.push({ label: "land", updater: this.landUpdater, walkable: this.landGrid[y][x], x, y });
+    }
+    if (previousAmphibiousWalkable !== this.amphibiousGrid[y][x]) {
+      meshChanges.push({
+        label: "amphibious",
+        updater: this.amphibiousUpdater,
+        walkable: this.amphibiousGrid[y][x],
+        x,
+        y,
+      });
+    }
+
     const timing =
       this.updateMode === UPDATE_MODES.accelerated
-        ? this._applyAcceleratedPatch(redrawBounds)
+        ? this._applyAcceleratedPatch(meshChanges)
         : this._applyLegacyRebuild();
 
     this.stats[this.updateMode].push(timing);
     if (this.stats[this.updateMode].length > 36) this.stats[this.updateMode].shift();
 
+    const changeSummary = meshChanges.length
+      ? meshChanges.map((change) => `${change.label} ${change.walkable ? "open" : "block"}`).join(" + ")
+      : "visual-only edit";
+
     this.lastPatchLabel =
       this.updateMode === UPDATE_MODES.accelerated
-        ? `Last patch: local ${redrawBounds.width}x${redrawBounds.height}`
-        : `Last patch: full ${MAP_WIDTH}x${MAP_HEIGHT}`;
+        ? `Last patch: ${changeSummary}`
+        : `Last patch: full ${MAP_WIDTH}x${MAP_HEIGHT} rebuild`;
 
     this.lastSummary =
       this.updateMode === UPDATE_MODES.accelerated
-        ? `Accelerated edit patched both navmeshes in ${formatMs(timing)} over a ${redrawBounds.width}x${redrawBounds.height} slice.`
+        ? `Accelerated edit stitched ${changeSummary} in ${formatMs(timing)} while keeping the rest of the mesh intact.`
         : `Legacy edit rebuilt both navmeshes from the full ${MAP_WIDTH}x${MAP_HEIGHT} map in ${formatMs(timing)}.`;
 
     this._flashPatch(redrawBounds, this.updateMode);
@@ -774,10 +794,13 @@ export default class RuntimeNavmeshLabScene extends Phaser.Scene {
     this._renderUi();
   }
 
-  _applyAcceleratedPatch(bounds) {
+  _applyAcceleratedPatch(meshChanges) {
+    if (!meshChanges.length) return 0;
     const started = performance.now();
-    this.landUpdater.replaceBounds(bounds, this.landGrid);
-    this.amphibiousUpdater.replaceBounds(bounds, this.amphibiousGrid);
+    meshChanges.forEach((change) => {
+      if (change.walkable) change.updater.openTile(change.x, change.y);
+      else change.updater.blockTile(change.x, change.y);
+    });
     return performance.now() - started;
   }
 

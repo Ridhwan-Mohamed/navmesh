@@ -8,7 +8,7 @@ This fork also includes runtime navmesh mutation APIs for grid-based worlds and 
 
 [Interactive demo](https://www.mikewesthad.com/navmesh/demo/)
 
-[Runtime Navmesh Lab](https://ridhwan-mohamed.github.io/navmesh/runtime-navmesh-lab/)
+[Runtime Navmesh Lab](https://ridhwan-mohamed.github.io/navmesh/)
 
 (Note: if you are viewing this on GitHub or NPM, you might want to check out the HTML documentation [here](https://www.mikewesthad.com/navmesh/docs/).)
 

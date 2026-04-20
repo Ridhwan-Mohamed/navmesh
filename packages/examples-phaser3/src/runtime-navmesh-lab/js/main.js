@@ -5,6 +5,7 @@ const ui = {
   toolButtons: [...document.querySelectorAll("[data-tool]")],
   navButtons: [...document.querySelectorAll("[data-nav-mode]")],
   updateButtons: [...document.querySelectorAll("[data-update-mode]")],
+  panelButtons: [...document.querySelectorAll("[data-panel-toggle]")],
   chipToolText: document.getElementById("chip-tool-text"),
   chipToolDot: document.getElementById("chip-tool-dot"),
   chipNavText: document.getElementById("chip-nav-text"),
@@ -29,6 +30,12 @@ const ui = {
 
 const setActive = (buttons, attrName, value) => {
   buttons.forEach((button) => button.classList.toggle("active", button.dataset[attrName] === value));
+};
+
+const syncPanelButton = (panel, button) => {
+  const collapsed = panel.classList.contains("collapsed");
+  button.textContent = collapsed ? "Open" : "Hide";
+  button.setAttribute("aria-expanded", String(!collapsed));
 };
 
 const renderSnapshot = (snapshot) => {
@@ -74,6 +81,16 @@ ui.navButtons.forEach((button) => {
 
 ui.updateButtons.forEach((button) => {
   button.addEventListener("click", () => scene.setUpdateMode(button.dataset.updateMode));
+});
+
+ui.panelButtons.forEach((button) => {
+  const panel = document.querySelector(`[data-panel="${button.dataset.panelToggle}"]`);
+  if (!panel) return;
+  syncPanelButton(panel, button);
+  button.addEventListener("click", () => {
+    panel.classList.toggle("collapsed");
+    syncPanelButton(panel, button);
+  });
 });
 
 const container = document.getElementById("game-container");

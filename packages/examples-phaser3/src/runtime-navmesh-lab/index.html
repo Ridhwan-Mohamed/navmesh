@@ -55,8 +55,10 @@
         position: absolute;
         top: 18px;
         left: 18px;
-        right: 388px;
+        right: 18px;
         display: flex;
+        align-items: flex-start;
+        flex-wrap: wrap;
         gap: 14px;
         z-index: 5;
         pointer-events: none;
@@ -64,6 +66,7 @@
 
       .hero,
       .status {
+        position: relative;
         pointer-events: auto;
         border-radius: 18px;
         border: 1px solid var(--panel-border);
@@ -80,6 +83,40 @@
       .status {
         min-width: 240px;
         padding: 14px 16px;
+      }
+
+      .panel-toggle {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        min-width: 0;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        line-height: 1;
+      }
+
+      .overlay-mini-label {
+        display: none;
+        padding-right: 56px;
+        font-family: "Bungee", cursive;
+        font-size: 11px;
+        color: var(--gold);
+      }
+
+      .hero.collapsed,
+      .status.collapsed {
+        padding: 12px 14px;
+      }
+
+      .hero.collapsed .panel-content,
+      .status.collapsed .panel-content {
+        display: none;
+      }
+
+      .hero.collapsed .overlay-mini-label,
+      .status.collapsed .overlay-mini-label {
+        display: block;
       }
 
       .eyebrow {
@@ -283,24 +320,32 @@
   <body>
     <div id="game-container">
       <div class="overlay">
-        <section class="hero">
-          <div class="eyebrow">RUNTIME NAVMESH MUTATION / PHASER 3 LAB</div>
-          <h1>Accelerated Grid Patch Demo</h1>
-          <p>
-            Edit land, water, and walls on a live 50x50 board. Switch between full navmesh rebuilds
-            and localized patch updates, then compare timings while the brawler repaths in real time.
-          </p>
-        </section>
-        <section class="status">
-          <div class="eyebrow">ACTIVE MODE</div>
-          <div class="chip-row">
-            <div class="chip"><span class="chip-dot" id="chip-tool-dot"></span><span id="chip-tool-text">Move</span></div>
-            <div class="chip"><span class="chip-dot" id="chip-nav-dot"></span><span id="chip-nav-text">Land Only</span></div>
-            <div class="chip"><span class="chip-dot" id="chip-update-dot"></span><span id="chip-update-text">Accelerated</span></div>
+        <section class="hero" data-panel="hero">
+          <div class="overlay-mini-label">Accelerated Grid Patch Demo</div>
+          <button type="button" class="panel-toggle" data-panel-toggle="hero" aria-expanded="true">Hide</button>
+          <div class="panel-content">
+            <div class="eyebrow">RUNTIME NAVMESH MUTATION / PHASER 3 LAB</div>
+            <h1>Accelerated Grid Patch Demo</h1>
+            <p>
+              Edit land, water, and walls on a live 50x50 board. Switch between full navmesh rebuilds
+              and localized patch updates, then compare timings while the brawler repaths in real time.
+            </p>
           </div>
-          <p id="status-summary" style="margin-top: 8px;">
-            Accelerated mode rebuilds only the selected grid slice instead of the entire navmesh.
-          </p>
+        </section>
+        <section class="status" data-panel="status">
+          <div class="overlay-mini-label">Active Mode</div>
+          <button type="button" class="panel-toggle" data-panel-toggle="status" aria-expanded="true">Hide</button>
+          <div class="panel-content">
+            <div class="eyebrow">ACTIVE MODE</div>
+            <div class="chip-row">
+              <div class="chip"><span class="chip-dot" id="chip-tool-dot"></span><span id="chip-tool-text">Move</span></div>
+              <div class="chip"><span class="chip-dot" id="chip-nav-dot"></span><span id="chip-nav-text">Land Only</span></div>
+              <div class="chip"><span class="chip-dot" id="chip-update-dot"></span><span id="chip-update-text">Accelerated</span></div>
+            </div>
+            <p id="status-summary" style="margin-top: 8px;">
+              Accelerated mode stitches tile edits into the existing navmesh instead of rebuilding the whole map.
+            </p>
+          </div>
         </section>
       </div>
     </div>
@@ -329,13 +374,13 @@
 
       <section class="panel">
         <h2>Update Path</h2>
-        <p>Legacy rebuild regenerates the entire mesh. Accelerated patch updates only the edited slice.</p>
+        <p>Legacy rebuild regenerates the entire mesh. Accelerated patch applies open/block edits and reconnects the changed local region.</p>
         <div class="button-row">
           <button data-update-mode="legacy">Legacy Rebuild</button>
           <button data-update-mode="accelerated">Accelerated Patch</button>
         </div>
         <div class="chip-row">
-          <div class="chip"><span class="chip-dot" style="color: #f1c96c;"></span><span id="last-patch-label">Last patch: local 3x3</span></div>
+          <div class="chip"><span class="chip-dot" style="color: #f1c96c;"></span><span id="last-patch-label">Last patch: waiting for edit</span></div>
         </div>
       </section>
 
@@ -375,8 +420,8 @@
       <section class="panel">
         <h2>Controls</h2>
         <div class="help-list">
-          <div>Click the brawler to select it. In move mode, click any reachable point to send it there.</div>
-          <div>Drag while painting to edit multiple tiles. Accelerated mode only updates the edited slice.</div>
+          <div>Click the brawler to select it. In move mode, click any point and it will project to the nearest valid mesh location.</div>
+          <div>Drag while painting to edit multiple tiles. Accelerated mode applies local open/block mutations instead of a full rebuild.</div>
           <div>Use mouse wheel to zoom. Use <strong>W A S D</strong> to pan the camera.</div>
           <div>Hotkeys: <strong>1</strong> move, <strong>2</strong> land, <strong>3</strong> water, <strong>4</strong> wall, <strong>5</strong> erase wall.</div>
         </div>
